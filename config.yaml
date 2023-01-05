@@ -1,0 +1,58 @@
+mitm:
+  ca_cert: ./myproxy.crt                     # CA 根证书路径
+  ca_key: ./myproxy.pem                      # CA 私钥路径
+  basic_auth:                           # 基础认证的用户名密码
+    username: ""
+    password: ""
+  allow_ip_range: []                    # 允许的 ip，可以是 ip 或者 cidr 字符串
+  restriction:                          # 代理能够访问的资源限制, 以下各项为空表示不限制
+    hostname_allowed: []                # 允许访问的 Hostname，支持格式如 t.com、*.t.com、1.1.1.1、1.1.1.1/24、1.1-4.1.1-8
+    hostname_disallowed:                # 不允许访问的 Hostname，支持格式如 t.com、*.t.com、1.1.1.1、1.1.1.1/24、1.1-4.1.1-8
+    - '*google*'
+    - '*github*'
+    - '*.gov.cn'
+    - '*chaitin*'
+    - '*.xray.cool'
+    - '*.baidu.com'
+    port_allowed: []                    # 允许访问的端口, 支持的格式如: 80、80-85
+    port_disallowed: []                 # 不允许访问的端口, 支持的格式如: 80、80-85
+    path_allowed: []                    # 允许访问的路径，支持的格式如: test、*test*
+    path_disallowed: []                 # 不允许访问的路径, 支持的格式如: test、*test*
+    query_key_allowed: []               # 允许访问的 Query Key，支持的格式如: test、*test*
+    query_key_disallowed: []            # 不允许访问的 Query Key, 支持的格式如: test、*test*
+    fragment_allowed: []                # 允许访问的 Fragment, 支持的格式如: test、*test*
+    fragment_disallowed: []             # 不允许访问的 Fragment, 支持的格式如: test、*test*
+    post_key_allowed: []                # 允许访问的 Post Body 中的参数, 支持的格式如: test、*test*
+    post_key_disallowed: []             # 不允许访问的 Post Body 中的参数, 支持的格式如: test、*test*
+  queue:
+    max_length: 3000                    # （暂不支持）队列长度限制, 也可以理解为最大允许多少等待扫描的请求, 请根据内存大小自行调整
+  proxy_header:
+    via: ""                             # 是否为代理自动添加 Via 头
+    x_forwarded: false                  # 是否为代理自动添加 X-Forwarded-{For,Host,Proto,Url} 四个 http 头
+  upstream_proxy: ""                    # 为 mitm 本身配置独立的代理，[http|https|socks5]://user:pass@localhost.com，如果格式错误会导致无法使用
+  custom_header:                        # 定义只对restriction中allow的设置生效
+    reset:                              # 需要重置的header字段
+      Accept-Language: en-US,en;q=0.9
+      Accept-Encoding: gzip, deflate
+    add:                                # 需要在原有基础上增加的header字段（直接字符串连接），如果原header字段不存在，则新增
+    delete:                             # 需要删掉的header字段
+    - "If-Modified-Since"
+    - "If-None-Match"
+  custom_replace:                       # 定义只对restriction中allow的设置生效（注：conditions设置response相关匹配条件对request的替换不生效）
+  - conditions:                         # 查找条件，同时满足所有条件时，执行替换，若为空则所有均满足
+    - item: "request_header"            # 空表示匹配所有阶段，否则匹配与burp相同request_header，request_body，response_header，response_body，request_param_name（暂不支持），request_param_value（暂不支持）
+      regexp: true                      # 是否正则匹配
+      match: ""                         # 匹配的字符串或正则表达式
+    replaces:                           # 替换规则，同时满足前面的查找条件时，会将下面匹配的字段进行替换
+    - item: "request_header"            # 空表示匹配所有阶段，否则匹配与burp相同request_header，request_body，response_header，response_body，request_param_name（暂不支持），request_param_value（暂不支持）
+      regexp: true                      # 是否正则匹配
+      match: ""                         # 匹配的字符串或正则表达式
+      replace: ""                       # 要替换成的字符串
+  http_dump:                            # 保存http数据包，request数据包在自定义替换后保存，response数据包在自定义替换前保存
+    dump_path: ""                       # http包保存路径，如果为空则不启用保存，如果文件名不合法，则保存文件创建失败，不进行保存
+    dump_request: true                  # 是否保存request包，false不保存
+    dump_response: true                 # 是否保存response包，false不保存
+    conditions:                         # 满足该条件时，保存数据包，若为空则所有都保存
+    - item: "request_header"            # 空表示匹配所有阶段，否则匹配与burp相同request_header，request_body，response_header，response_body，request_param_name（暂不支持），request_param_value（暂不支持）
+      regexp: true                      # 是否正则匹配
+      match: ""                         # 匹配的字符串或正则表达式
