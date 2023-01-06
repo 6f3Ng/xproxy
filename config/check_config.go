@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -63,10 +62,7 @@ func CheckRestriction(ctx *goproxy.Context, restriction Restriction) bool {
 
 // 判断custom_replace中关于request的条件是否成立
 func CheckReqConditions(ctx *goproxy.Context, condition []Condition) bool {
-	rawReq, err := httputil.DumpRequestOut(ctx.Req, true)
-	if err != nil {
-		log.Panicln(err)
-	}
+	rawReq, _ := httputil.DumpRequestOut(ctx.Req, true)
 	// log.Println(string(rawReq))
 	rawReqWithoutBody, _ := httputil.DumpRequestOut(ctx.Req, false)
 	// log.Println(string(rawReqWithoutBody))

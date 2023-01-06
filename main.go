@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -16,6 +17,7 @@ import (
 var (
 	configFile string
 	listenAddr string
+	generateCA bool
 	yamlConfig config.YamlConfig
 )
 
@@ -24,6 +26,7 @@ func init() {
 	log.Println("开始初始化...")
 	flag.StringVar(&configFile, "config", "config.yaml", "yaml config file, default \"config.yaml\"")
 	flag.StringVar(&listenAddr, "listen", ":8082", "listen addr, default \":8082\"")
+	flag.BoolVar(&generateCA, "generateCA", false, "generate ca_cert and ca_key")
 	testing.Init()
 	flag.Parse()
 	if _, err := os.Stat(configFile); err != nil {
@@ -35,6 +38,22 @@ func init() {
 	// log.Println(yamlConfig)
 	if err != nil || yamlConfig.IsEmpty() {
 		yamlConfig.Init(configFile)
+	}
+
+	if generateCA {
+		keyPair, err := cert.GenerateCA()
+		if err != nil {
+			log.Fatalf("证书生成失败: %s", err)
+		}
+		err = ioutil.WriteFile(yamlConfig.MitmConfig.CaCert, keyPair.CertBytes, os.ModeAppend|os.ModePerm)
+		if err != nil {
+			log.Fatalf("根证书写入失败: %s", err)
+		}
+		err = ioutil.WriteFile(yamlConfig.MitmConfig.CaKey, keyPair.PrivateKeyBytes, os.ModeAppend|os.ModePerm)
+		if err != nil {
+			log.Fatalf("根证书私钥写入失败: %s", err)
+		}
+		log.Fatalln("证书生成成功！")
 	}
 
 	log.Println("读取证书...")
@@ -52,6 +71,7 @@ func main() {
 		WriteTimeout: 1 * time.Minute,
 	}
 	err := server.ListenAndServe()
+	// err := server.ListenAndServeTLS(yamlConfig.MitmConfig.CaCert, yamlConfig.MitmConfig.CaKey)
 	if err != nil {
 		panic(err)
 	}

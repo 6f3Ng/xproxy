@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	crand "crypto/rand"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -15,7 +16,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"net"
 	"time"
@@ -35,22 +35,22 @@ func Init(defaultRootCAPemFile, defaultRootKeyPemFile string) {
 	var err error
 	defaultRootCAPem, err = ioutil.ReadFile(defaultRootCAPemFile)
 	if err != nil {
-		panic(fmt.Errorf("加载根证书失败: %s", err))
+		log.Fatalf("加载根证书失败: %s，请使用 -generateCA 重新生成证书。", err)
 	}
 	block, _ := pem.Decode(defaultRootCAPem)
 	defaultRootCA, err = x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		panic(fmt.Errorf("加载根证书失败: %s", err))
+		log.Fatalf("加载根证书失败: %s，请使用 -generateCA 重新生成证书。", err)
 	}
 
 	defaultRootKeyPem, err = ioutil.ReadFile(defaultRootKeyPemFile)
 	if err != nil {
-		panic(fmt.Errorf("加载根证书失败: %s", err))
+		log.Fatalf("加载根证书私钥失败: %s，请使用 -generateCA 重新生成证书。", err)
 	}
 	block, _ = pem.Decode(defaultRootKeyPem)
 	defaultRootKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
-		panic(fmt.Errorf("加载根证书私钥失败: %s", err))
+		log.Fatalf("加载根证书私钥失败: %s，请使用 -generateCA 重新生成证书。", err)
 	}
 }
 
@@ -166,7 +166,7 @@ func (c *Certificate) GeneratePem(host string, expireDays int, rootCA *x509.Cert
 }
 
 // GenerateCA 生成根证书
-func (c *Certificate) GenerateCA() (*Pair, error) {
+func GenerateCA() (*Pair, error) {
 	priv, err := rsa.GenerateKey(crand.Reader, 2048)
 	if err != nil {
 		return nil, err
@@ -185,8 +185,8 @@ func (c *Certificate) GenerateCA() (*Pair, error) {
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 		// MaxPathLen:            2,
-		// ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		// KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageAny, x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		// KeyUsage:    x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageContentCommitment,
 		// EmailAddresses:        []string{"admin@admin.com"},
 	}
 
@@ -226,8 +226,10 @@ func (c *Certificate) template(host string, expireYears int) *x509.Certificate {
 		Subject: pkix.Name{
 			CommonName: host,
 		},
-		NotBefore: x509RootCACert.NotBefore,
-		NotAfter:  x509RootCACert.NotAfter,
+		NotBefore:   x509RootCACert.NotBefore,
+		NotAfter:    x509RootCACert.NotAfter,
+		ExtKeyUsage: x509RootCACert.ExtKeyUsage,
+		// KeyUsage:    x509RootCACert.KeyUsage,
 		// NotBefore: time.Now().AddDate(-1, 0, 0),
 		// NotAfter:  time.Now().AddDate(expireYears, 0, 0),
 		// BasicConstraintsValid: true,
