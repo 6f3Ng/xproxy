@@ -8,6 +8,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var YamlConfigVar YamlConfig
+
 type YamlConfig struct {
 	MitmConfig MitmConfig `yaml:"mitm"`
 }
@@ -24,6 +26,14 @@ type MitmConfig struct {
 	CustomHeader   CustomHeader    `yaml:"custom_header"`  // 定义只对restriction中allow的设置生效
 	CustomReplaces []CustomReplace `yaml:"custom_replace"` // 定义只对restriction中allow的设置生效（注：conditions设置response相关匹配条件对request的替换不生效）
 	HttpDump       HttpDump        `yaml:"http_dump"`      // 保存http数据包，request数据包在自定义替换后保存，response数据包在自定义替换前保存
+	RawData        RawData         `yaml:"-"`
+}
+type RawData struct {
+	RequestHeader  string `yaml:"-"` // 临时保存request header原文
+	RequestBody    string `yaml:"-"` // 临时保存request body原文
+	ResponseHeader string `yaml:"-"` // 临时保存request header原文
+	ResponseBody   string `yaml:"-"` // 临时保存request body原文
+
 }
 
 type BasicAuth struct {
@@ -44,7 +54,7 @@ type Restriction struct {
 	FragmentDisallowed []string `yaml:"fragment_disallowed"`  // 不允许访问的 Fragment, 支持的格式如: test、*test*
 	PostKeyAllowed     []string `yaml:"post_key_allowed"`     // 允许访问的 Post Body 中的参数, 支持的格式如: test、*test*
 	PostKeyDisallowed  []string `yaml:"post_key_disallowed"`  // 不允许访问的 Post Body 中的参数, 支持的格式如: test、*test*
-	FlagRestriction    bool     // Restriction的匹配结果，后续调用
+	FlagRestriction    bool     `yaml:"-" json:"-"`           // Restriction的匹配结果，后续调用
 }
 
 type Queue struct {
@@ -64,9 +74,9 @@ type CustomHeader struct {
 
 type CustomReplace struct {
 	Conditions []Condition `yaml:"conditions"` // 查找条件
-	FlagReq    bool        // conditions中的request匹配是否全部成功
-	FlagResp   bool        // conditions中的response匹配是否全部成功
-	Replaces   []Replace   `yaml:"replaces"` // 替换规则
+	FlagReq    bool        `yaml:"-" json:"-"` // conditions中的request匹配是否全部成功
+	FlagResp   bool        `yaml:"-" json:"-"` // conditions中的response匹配是否全部成功
+	Replaces   []Replace   `yaml:"replaces"`   // 替换规则
 }
 
 type Condition struct {
@@ -83,16 +93,12 @@ type Replace struct {
 }
 
 type HttpDump struct {
-	DumpPath       string      `yaml:"dump_path"`    // http包保存路径，如果为空则不启用保存，如果文件名不合法，则保存文件创建失败，不进行保存
-	DumpRequest    bool        `yaml:"dump_request"` // 是否保存request包，false不保存
-	RequestHeader  string      // 临时保存request header原文
-	RequestBody    string      // 临时保存request body原文
-	DumpResponse   bool        `yaml:"dump_response"` // 是否保存response包，false不保存
-	ResponseHeader string      // 临时保存request header原文
-	ResponseBody   string      // 临时保存request body原文
-	FlagReq        bool        // conditions中的request匹配是否全部成功
-	FlagResp       bool        // conditions中的response匹配是否全部成功
-	Conditions     []Condition `yaml:"conditions"` // 满足该条件时，保存数据包，若为空则所有都保存
+	DumpPath     string      `yaml:"dump_path"`     // http包保存路径，如果为空则不启用保存，如果文件名不合法，则保存文件创建失败，不进行保存
+	DumpRequest  bool        `yaml:"dump_request"`  // 是否保存request包，false不保存
+	DumpResponse bool        `yaml:"dump_response"` // 是否保存response包，false不保存
+	FlagReq      bool        `yaml:"-" json:"-"`    // conditions中的request匹配是否全部成功
+	FlagResp     bool        `yaml:"-" json:"-"`    // conditions中的response匹配是否全部成功
+	Conditions   []Condition `yaml:"conditions"`    // 满足该条件时，保存数据包，若为空则所有都保存
 }
 
 // config.yaml是否为空判断

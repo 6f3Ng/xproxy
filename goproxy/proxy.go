@@ -32,9 +32,12 @@ var (
 	// 代理认证失败响应
 	proxyAuthorizationRequired = []byte("HTTP/1.1 407 \r\nConnection: close\r\nProxy Authorization Required\r\nProxy-Authenticate: Basic realm=\"Access to internal site\"\r\n\r\n")
 	// proxyAuthorizationRequiredFromXray = []byte("HTTP/1.1 407 200 OK \r\nConnection: close\r\nProxy-Authenticate: Basic\r\nWarning: 199 \"martian\" \"auth error\" \"" + time.Now().Local().String() + "\"\r\nContent-Length: 0\r\n\r\n")
-)
 
-var badGateway = []byte(fmt.Sprintf("HTTP/1.1 %d %s\r\n\r\n", http.StatusBadGateway, http.StatusText(http.StatusBadGateway)))
+	badGateway = []byte(fmt.Sprintf("HTTP/1.1 %d %s\r\n\r\n", http.StatusBadGateway, http.StatusText(http.StatusBadGateway)))
+
+	// 下载证书
+	// downloadCertResponseLine = []byte(fmt.Sprintf("HTTP/1.1 %d %s\r\nContent-type: text/plain\r\nContent-length: %d\r\n\r\n%s", http.StatusOK, http.StatusText(http.StatusOK), len(cert.GetDefaultRootCAPem()), string(cert.GetDefaultRootCAPem())))
+)
 
 // 生成隧道建立请求行
 func makeTunnelRequestLine(addr string) string {
@@ -47,6 +50,7 @@ type options struct {
 	decryptHTTPS     bool
 	certCache        cert.Cache
 	transport        *http.Transport
+	listenAddr       string
 }
 
 type Option func(*options)
@@ -77,6 +81,13 @@ func WithDecryptHTTPS(c cert.Cache) Option {
 	return func(opt *options) {
 		opt.decryptHTTPS = true
 		opt.certCache = c
+	}
+}
+
+// 传入监听端口
+func WithListenAddr(listenAddr string) Option {
+	return func(opt *options) {
+		opt.listenAddr = listenAddr
 	}
 }
 
@@ -116,6 +127,10 @@ func New(opt ...Option) *Proxy {
 	p.transport.DisableKeepAlives = opts.disableKeepAlive
 	p.transport.Proxy = p.delegate.ParentProxy
 
+	p.listenAddr = opts.listenAddr
+
+	p.ipList, _ = getAllIps()
+
 	return p
 }
 
@@ -126,6 +141,55 @@ type Proxy struct {
 	decryptHTTPS  bool
 	cert          *cert.Certificate
 	transport     *http.Transport
+	listenAddr    string
+	ipList        []string
+}
+
+func (p *Proxy) checkListenAddr(host string) bool {
+	listenIp, listenPort, _ := net.SplitHostPort(p.listenAddr)
+	reqIp, reqPort, _ := net.SplitHostPort(host)
+	if listenPort != reqPort {
+		return false
+	}
+	if listenIp != "" {
+		if reqIp == listenIp {
+			return true
+		} else {
+			return false
+		}
+	} else {
+		for _, v := range p.ipList {
+			if v == reqIp {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func getAllIps() ([]string, error) {
+	ips := []string{}
+	interfaces, err := net.Interfaces()
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, i := range interfaces {
+		if err != nil {
+			return nil, err
+		}
+		addresses, _ := i.Addrs()
+		for _, address := range addresses {
+			if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil {
+					// fmt.Println(ipnet.IP.String())
+					ips = append(ips, ipnet.IP.String())
+				}
+			}
+		}
+	}
+	return ips, nil
 }
 
 var _ http.Handler = &Proxy{}
@@ -135,6 +199,21 @@ func (p *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.URL.Host == "" {
 		req.URL.Host = req.Host
 	}
+
+	var reqHost string
+
+	if strings.Contains(req.URL.Host, ":") {
+		reqHost = req.URL.Host
+	} else {
+		if req.URL.Scheme == "http" {
+			reqHost = req.URL.Host + ":80"
+		} else {
+			reqHost = req.URL.Host + ":443"
+		}
+	}
+
+	// log.Println(reqHost)
+
 	atomic.AddInt32(&p.clientConnNum, 1)
 	defer func() {
 		atomic.AddInt32(&p.clientConnNum, -1)
@@ -144,6 +223,7 @@ func (p *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		Data: make(map[interface{}]interface{}),
 	}
 	defer p.delegate.Finish(ctx)
+
 	p.delegate.Connect(ctx, rw)
 	if ctx.abort {
 		return
@@ -152,6 +232,12 @@ func (p *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if ctx.abort {
 		p.NeedAuth(rw)
 		// p.forwardAbort(ctx, rw)
+		return
+	}
+
+	// 解决无限连接循环问题，访问监听端口为程序web页面
+	if p.checkListenAddr(reqHost) {
+		p.MyServer(ctx, rw)
 		return
 	}
 
@@ -181,6 +267,30 @@ func (p *Proxy) NeedAuth(rw http.ResponseWriter) {
 	defer Client.Close()
 	_, _ = Client.Write(proxyAuthorizationRequired)
 }
+
+// 下载证书
+// func (p *Proxy) DownloadCert(rw http.ResponseWriter) {
+// 	resp := &http.Response{
+// 		StatusCode: http.StatusOK,
+// 		Status:     http.StatusText(http.StatusOK),
+// 		Body:       ioutil.NopCloser(bytes.NewBuffer(cert.GetDefaultRootCAPem())),
+// 	}
+
+// 	removeConnectionHeaders(resp.Header)
+// 	for _, h := range hopHeaders {
+// 		resp.Header.Del(h)
+// 	}
+
+// 	defer resp.Body.Close()
+// 	CopyHeader(rw.Header(), resp.Header)
+// 	rw.WriteHeader(resp.StatusCode)
+// 	io.Copy(rw, resp.Body)
+// }
+
+// func (p *Proxy) DownloadCertRequest(ctx *Context, responseFunc func(*http.Response, error)) {
+
+// 	responseFunc(resp, nil)
+// }
 
 // DoRequest 执行HTTP请求，并调用responseFunc处理response
 func (p *Proxy) DoRequest(ctx *Context, responseFunc func(*http.Response, error)) {

@@ -9,7 +9,6 @@ import (
 	"net/http/httputil"
 	"regexp"
 	"strings"
-	"xproxy/goproxy"
 	"xproxy/utils"
 )
 
@@ -27,47 +26,47 @@ func CheckAllowIpRange(ip string, allowIpRange []string) bool {
 }
 
 // 匹配restriction，匹配成功返回true，进行后续替换操作；未匹配返回false
-func CheckRestriction(ctx *goproxy.Context, restriction Restriction) bool {
+func CheckRestriction(req *http.Request, restriction Restriction) bool {
 	queryKeys := []string{}
 	postKeys := []string{}
-	for k := range ctx.Req.URL.Query() {
+	for k := range req.URL.Query() {
 		queryKeys = append(queryKeys, k)
 	}
-	for k := range ctx.Req.PostForm {
+	for k := range req.PostForm {
 		postKeys = append(postKeys, k)
 	}
 	var (
 		hostIp   string
 		hostPort string
 	)
-	if strings.Contains(ctx.Req.Host, ":") {
-		hostIp, hostPort, _ = net.SplitHostPort(ctx.Req.Host)
+	if strings.Contains(req.Host, ":") {
+		hostIp, hostPort, _ = net.SplitHostPort(req.Host)
 	} else {
-		hostIp = ctx.Req.Host
-		if ctx.Req.TLS == nil {
+		hostIp = req.Host
+		if req.TLS == nil {
 			hostPort = "80"
 		} else {
 			hostPort = "443"
 		}
 	}
-	// log.Println(ctx.Req.URL.Path)
+	// log.Println(req.URL.Path)
 
 	return checkHostname(hostIp, restriction.HostnameAllowed, restriction.HostnameDisallowed) &&
 		checkPort(hostPort, restriction.PortAllowed, restriction.PortDisallowed) &&
-		checkString(ctx.Req.URL.Path, restriction.PathAllowed, restriction.PathDisallowed) &&
+		checkString(req.URL.Path, restriction.PathAllowed, restriction.PathDisallowed) &&
 		checkArray(queryKeys, restriction.QueryKeyAllowed, restriction.QueryKeyDisallowed) &&
 		checkArray(postKeys, restriction.PostKeyAllowed, restriction.PostKeyDisallowed) &&
-		checkString(ctx.Req.URL.Fragment, restriction.FragmentAllowed, restriction.FragmentDisallowed)
+		checkString(req.URL.Fragment, restriction.FragmentAllowed, restriction.FragmentDisallowed)
 }
 
 // 判断custom_replace中关于request的条件是否成立
-func CheckReqConditions(ctx *goproxy.Context, condition []Condition) bool {
-	rawReq, _ := httputil.DumpRequestOut(ctx.Req, true)
+func CheckReqConditions(req *http.Request, condition []Condition) bool {
+	rawReq, _ := httputil.DumpRequestOut(req, true)
 	// log.Println(string(rawReq))
-	rawReqWithoutBody, _ := httputil.DumpRequestOut(ctx.Req, false)
+	rawReqWithoutBody, _ := httputil.DumpRequestOut(req, false)
 	// log.Println(string(rawReqWithoutBody))
-	rawReqBody, _ := ioutil.ReadAll(bufio.NewReader(ctx.Req.Body))
-	ctx.Req.Body = ioutil.NopCloser(bytes.NewReader(rawReqBody))
+	rawReqBody, _ := ioutil.ReadAll(bufio.NewReader(req.Body))
+	req.Body = ioutil.NopCloser(bytes.NewReader(rawReqBody))
 	// log.Println(string(rawReqBody))
 
 	for _, v := range condition {
@@ -181,10 +180,10 @@ func CheckRespConditions(resp *http.Response, condition []Condition) bool {
 }
 
 // 对custom_replace中关于request的条件进行替换
-func DoReqReplace(ctx *goproxy.Context, replace []Replace) (*http.Request, error) {
-	rawReqWithoutBody, _ := httputil.DumpRequestOut(ctx.Req, false)
+func DoReqReplace(req *http.Request, replace []Replace) (*http.Request, error) {
+	rawReqWithoutBody, _ := httputil.DumpRequestOut(req, false)
 	// log.Println(string(rawReqWithoutBody))
-	rawReqBody, _ := ioutil.ReadAll(bufio.NewReader(ctx.Req.Body))
+	rawReqBody, _ := ioutil.ReadAll(bufio.NewReader(req.Body))
 	// log.Println(string(rawReqBody))
 
 	for _, v := range replace {
@@ -224,8 +223,8 @@ func DoReqReplace(ctx *goproxy.Context, replace []Replace) (*http.Request, error
 		}
 	}
 	newReq, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(append(rawReqWithoutBody, rawReqBody...))))
-	newReq.URL.Scheme = ctx.Req.URL.Scheme
-	newReq.URL.Host = ctx.Req.URL.Host
+	newReq.URL.Scheme = req.URL.Scheme
+	newReq.URL.Host = req.URL.Host
 	return newReq, err
 }
 

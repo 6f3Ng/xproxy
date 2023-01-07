@@ -18,7 +18,6 @@ var (
 	configFile string
 	listenAddr string
 	generateCA bool
-	yamlConfig config.YamlConfig
 )
 
 // 初始化
@@ -34,10 +33,10 @@ func init() {
 		configFile = "config.yaml"
 	}
 	// 读取config.yaml文件，读取失败则初始化一个
-	err := yamlConfig.Load(configFile, &yamlConfig)
-	// log.Println(yamlConfig)
-	if err != nil || yamlConfig.IsEmpty() {
-		yamlConfig.Init(configFile)
+	err := config.YamlConfigVar.Load(configFile, &config.YamlConfigVar)
+	// log.Println(config.YamlConfigVar)
+	if err != nil || config.YamlConfigVar.IsEmpty() {
+		config.YamlConfigVar.Init(configFile)
 	}
 
 	if generateCA {
@@ -45,11 +44,11 @@ func init() {
 		if err != nil {
 			log.Fatalf("证书生成失败: %s", err)
 		}
-		err = ioutil.WriteFile(yamlConfig.MitmConfig.CaCert, keyPair.CertBytes, os.ModeAppend|os.ModePerm)
+		err = ioutil.WriteFile(config.YamlConfigVar.MitmConfig.CaCert, keyPair.CertBytes, os.ModeAppend|os.ModePerm)
 		if err != nil {
 			log.Fatalf("根证书写入失败: %s", err)
 		}
-		err = ioutil.WriteFile(yamlConfig.MitmConfig.CaKey, keyPair.PrivateKeyBytes, os.ModeAppend|os.ModePerm)
+		err = ioutil.WriteFile(config.YamlConfigVar.MitmConfig.CaKey, keyPair.PrivateKeyBytes, os.ModeAppend|os.ModePerm)
 		if err != nil {
 			log.Fatalf("根证书私钥写入失败: %s", err)
 		}
@@ -57,13 +56,13 @@ func init() {
 	}
 
 	log.Println("读取证书...")
-	cert.Init(yamlConfig.MitmConfig.CaCert, yamlConfig.MitmConfig.CaKey)
+	cert.Init(config.YamlConfigVar.MitmConfig.CaCert, config.YamlConfigVar.MitmConfig.CaKey)
 
 	log.Println("初始化完成！")
 }
 
 func main() {
-	proxy := goproxy.New(goproxy.WithDelegate(&EventHandler{}), goproxy.WithDecryptHTTPS(&Cache{}))
+	proxy := goproxy.New(goproxy.WithDelegate(&EventHandler{}), goproxy.WithDecryptHTTPS(&Cache{}), goproxy.WithListenAddr(listenAddr))
 	server := &http.Server{
 		Addr:         listenAddr,
 		Handler:      proxy,
@@ -71,7 +70,7 @@ func main() {
 		WriteTimeout: 1 * time.Minute,
 	}
 	err := server.ListenAndServe()
-	// err := server.ListenAndServeTLS(yamlConfig.MitmConfig.CaCert, yamlConfig.MitmConfig.CaKey)
+	// err := server.ListenAndServeTLS(config.YamlConfigVar.MitmConfig.CaCert, config.YamlConfigVar.MitmConfig.CaKey)
 	if err != nil {
 		panic(err)
 	}
