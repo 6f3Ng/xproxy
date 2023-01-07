@@ -4,10 +4,11 @@
 
 ## 说明
 ### 使用方法：
-`xproxy.exe [-listen :8082] [-config config.yaml]`
+生成证书：`xproxy.exe -generateCA`
+开始使用：`xproxy.exe [-listen :8082] [-config config.yaml]`
 
 ### 配置文件说明
-具体`config.yaml`配置项有空再写
+具体`config.yaml`配置项和使用方法有空再写
 
 ## 参考项目
 - 代理部分参考[https://github.com/ouqiang/goproxy](https://github.com/ouqiang/goproxy)
