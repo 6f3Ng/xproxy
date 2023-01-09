@@ -8,8 +8,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var YamlConfigVar YamlConfig
-
 type YamlConfig struct {
 	MitmConfig MitmConfig `yaml:"mitm"`
 }

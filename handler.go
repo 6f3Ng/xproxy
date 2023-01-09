@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"xproxy/config"
+	"xproxy/global"
 	"xproxy/goproxy"
 	"xproxy/utils"
 )
@@ -24,16 +25,16 @@ func (e *EventHandler) Connect(ctx *goproxy.Context, rw http.ResponseWriter) {
 	// ctx.Data["req_id"] = "uuid"
 
 	// 是否在allow_ip_range中，否则禁止访问
-	if !config.CheckAllowIpRange(ctx.Req.RemoteAddr, config.YamlConfigVar.MitmConfig.AllowIpRange) {
+	if !config.CheckAllowIpRange(ctx.Req.RemoteAddr, global.YamlConfigVar.MitmConfig.AllowIpRange) {
 		ctx.Abort()
 		return
 	}
 
 	// 初始化一些标志位
-	// config.YamlConfigVar.MitmConfig.RawData.RequestHeader = ""
-	// config.YamlConfigVar.MitmConfig.RawData.RequestBody = ""
-	// config.YamlConfigVar.MitmConfig.RawData.ResponseHeader = ""
-	// config.YamlConfigVar.MitmConfig.RawData.ResponseBody = ""
+	// global.YamlConfigVar.MitmConfig.RawData.RequestHeader = ""
+	// global.YamlConfigVar.MitmConfig.RawData.RequestBody = ""
+	// global.YamlConfigVar.MitmConfig.RawData.ResponseHeader = ""
+	// global.YamlConfigVar.MitmConfig.RawData.ResponseBody = ""
 
 	// 禁止访问某个域名
 	// if strings.Contains(ctx.Req.URL.Host, "example.com") {
@@ -46,14 +47,14 @@ func (e *EventHandler) Connect(ctx *goproxy.Context, rw http.ResponseWriter) {
 func (e *EventHandler) Auth(ctx *goproxy.Context, rw http.ResponseWriter) {
 	// fmt.Printf("auth to: %s \n", ctx.Req.URL)
 
-	if config.YamlConfigVar.MitmConfig.BasicAuth.Username != "" {
+	if global.YamlConfigVar.MitmConfig.BasicAuth.Username != "" {
 		authString := ctx.Req.Header.Get("Proxy-Authorization")
 		if authString == "" {
 			ctx.Abort()
 			return
 		}
 		user, pass, ok := parseBasicAuth(authString)
-		if !ok || user != config.YamlConfigVar.MitmConfig.BasicAuth.Username || pass != config.YamlConfigVar.MitmConfig.BasicAuth.Password {
+		if !ok || user != global.YamlConfigVar.MitmConfig.BasicAuth.Username || pass != global.YamlConfigVar.MitmConfig.BasicAuth.Password {
 			// fmt.Println(user, pass)
 			ctx.Abort()
 			return
@@ -82,20 +83,20 @@ func parseBasicAuth(auth string) (username, password string, ok bool) {
 func (e *EventHandler) BeforeRequest(ctx *goproxy.Context) {
 	// fmt.Printf("BeforeRequest to: %s \n", ctx.Req.URL)
 
-	config.YamlConfigVar.MitmConfig.Restriction.FlagRestriction = config.CheckRestriction(ctx.Req, config.YamlConfigVar.MitmConfig.Restriction)
+	global.YamlConfigVar.MitmConfig.Restriction.FlagRestriction = config.CheckRestriction(ctx.Req, global.YamlConfigVar.MitmConfig.Restriction)
 	// 修改header
 
 	rawReqWithoutBody, _ := httputil.DumpRequestOut(ctx.Req, false)
 	rawReqBody, _ := ioutil.ReadAll(bufio.NewReader(ctx.Req.Body))
 	ctx.Req.Body = ioutil.NopCloser(bytes.NewReader(rawReqBody))
-	config.YamlConfigVar.MitmConfig.RawData.RequestHeader = string(rawReqWithoutBody)
-	config.YamlConfigVar.MitmConfig.RawData.RequestBody = string(rawReqBody)
+	global.YamlConfigVar.MitmConfig.RawData.RequestHeader = string(rawReqWithoutBody)
+	global.YamlConfigVar.MitmConfig.RawData.RequestBody = string(rawReqBody)
 
-	if config.YamlConfigVar.MitmConfig.Restriction.FlagRestriction {
-		for k, v := range config.YamlConfigVar.MitmConfig.CustomHeader.Reset {
+	if global.YamlConfigVar.MitmConfig.Restriction.FlagRestriction {
+		for k, v := range global.YamlConfigVar.MitmConfig.CustomHeader.Reset {
 			ctx.Req.Header.Set(k, v)
 		}
-		for k, v := range config.YamlConfigVar.MitmConfig.CustomHeader.Add {
+		for k, v := range global.YamlConfigVar.MitmConfig.CustomHeader.Add {
 			if prior, ok := ctx.Req.Header[k]; ok {
 				prior = append(prior, v)
 				newPrior := strings.Join(prior, "")
@@ -104,24 +105,24 @@ func (e *EventHandler) BeforeRequest(ctx *goproxy.Context) {
 				ctx.Req.Header.Set(k, v)
 			}
 		}
-		for _, v := range config.YamlConfigVar.MitmConfig.CustomHeader.Delete {
+		for _, v := range global.YamlConfigVar.MitmConfig.CustomHeader.Delete {
 			ctx.Req.Header.Del(v)
 		}
-		for i, v := range config.YamlConfigVar.MitmConfig.CustomReplaces {
-			config.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagReq = config.CheckReqConditions(ctx.Req, v.Conditions)
+		for i, v := range global.YamlConfigVar.MitmConfig.CustomReplaces {
+			global.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagReq = config.CheckReqConditions(ctx.Req, v.Conditions)
 			// log.Println(v.FlagReq)
-			if config.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagReq {
+			if global.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagReq {
 				ctx.Req, _ = config.DoReqReplace(ctx.Req, v.Replaces)
 			}
 		}
-		if config.YamlConfigVar.MitmConfig.HttpDump.DumpPath != "" {
-			config.YamlConfigVar.MitmConfig.HttpDump.FlagReq = config.CheckReqConditions(ctx.Req, config.YamlConfigVar.MitmConfig.HttpDump.Conditions)
-			if config.YamlConfigVar.MitmConfig.HttpDump.FlagReq && config.YamlConfigVar.MitmConfig.HttpDump.DumpRequest {
+		if global.YamlConfigVar.MitmConfig.HttpDump.DumpPath != "" {
+			global.YamlConfigVar.MitmConfig.HttpDump.FlagReq = config.CheckReqConditions(ctx.Req, global.YamlConfigVar.MitmConfig.HttpDump.Conditions)
+			if global.YamlConfigVar.MitmConfig.HttpDump.FlagReq && global.YamlConfigVar.MitmConfig.HttpDump.DumpRequest {
 				rawReqWithoutBody, _ := httputil.DumpRequestOut(ctx.Req, false)
 				rawReqBody, _ := ioutil.ReadAll(bufio.NewReader(ctx.Req.Body))
 				ctx.Req.Body = ioutil.NopCloser(bytes.NewReader(rawReqBody))
-				config.YamlConfigVar.MitmConfig.RawData.RequestHeader = string(rawReqWithoutBody)
-				config.YamlConfigVar.MitmConfig.RawData.RequestBody = string(rawReqBody)
+				global.YamlConfigVar.MitmConfig.RawData.RequestHeader = string(rawReqWithoutBody)
+				global.YamlConfigVar.MitmConfig.RawData.RequestBody = string(rawReqBody)
 			}
 		}
 	}
@@ -149,16 +150,16 @@ func (e *EventHandler) BeforeResponse(ctx *goproxy.Context, resp *http.Response,
 		return
 	}
 
-	if config.YamlConfigVar.MitmConfig.Restriction.FlagRestriction {
-		if config.YamlConfigVar.MitmConfig.HttpDump.DumpPath != "" {
-			fileObj, err := os.OpenFile(config.YamlConfigVar.MitmConfig.HttpDump.DumpPath, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModeAppend|os.ModePerm) // 读写方式打开
+	if global.YamlConfigVar.MitmConfig.Restriction.FlagRestriction {
+		if global.YamlConfigVar.MitmConfig.HttpDump.DumpPath != "" {
+			fileObj, err := os.OpenFile(global.YamlConfigVar.MitmConfig.HttpDump.DumpPath, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModeAppend|os.ModePerm) // 读写方式打开
 			if err != nil {
 				log.Println(err)
 			}
 			defer fileObj.Close()
-			if err == nil && config.YamlConfigVar.MitmConfig.HttpDump.FlagReq && config.YamlConfigVar.MitmConfig.HttpDump.DumpResponse {
-				config.YamlConfigVar.MitmConfig.HttpDump.FlagResp = config.CheckRespConditions(resp, config.YamlConfigVar.MitmConfig.HttpDump.Conditions)
-				if config.YamlConfigVar.MitmConfig.HttpDump.FlagResp {
+			if err == nil && global.YamlConfigVar.MitmConfig.HttpDump.FlagReq && global.YamlConfigVar.MitmConfig.HttpDump.DumpResponse {
+				global.YamlConfigVar.MitmConfig.HttpDump.FlagResp = config.CheckRespConditions(resp, global.YamlConfigVar.MitmConfig.HttpDump.Conditions)
+				if global.YamlConfigVar.MitmConfig.HttpDump.FlagResp {
 					rawRespWithoutBody, _ := httputil.DumpResponse(resp, false)
 					// log.Println(string(rawRespWithoutBody))
 					var rawRespBody []byte
@@ -173,16 +174,16 @@ func (e *EventHandler) BeforeResponse(ctx *goproxy.Context, resp *http.Response,
 						rawRespBody, _ = ioutil.ReadAll(resp.Body)
 						resp.Body = ioutil.NopCloser(bytes.NewReader(rawRespBody))
 					}
-					config.YamlConfigVar.MitmConfig.RawData.ResponseHeader = string(rawRespWithoutBody)
-					config.YamlConfigVar.MitmConfig.RawData.ResponseBody = string(rawRespBody)
+					global.YamlConfigVar.MitmConfig.RawData.ResponseHeader = string(rawRespWithoutBody)
+					global.YamlConfigVar.MitmConfig.RawData.ResponseBody = string(rawRespBody)
 
-					// log.Println(string(config.YamlConfigVar.MitmConfig.RawData.RequestHeader + config.YamlConfigVar.MitmConfig.RawData.RequestBody))
-					// log.Println(string(config.YamlConfigVar.MitmConfig.RawData.ResponseHeader + config.YamlConfigVar.MitmConfig.RawData.ResponseBody))
+					// log.Println(string(global.YamlConfigVar.MitmConfig.RawData.RequestHeader + global.YamlConfigVar.MitmConfig.RawData.RequestBody))
+					// log.Println(string(global.YamlConfigVar.MitmConfig.RawData.ResponseHeader + global.YamlConfigVar.MitmConfig.RawData.ResponseBody))
 
-					if config.YamlConfigVar.MitmConfig.HttpDump.DumpRequest {
-						fileObj.WriteString("```\n" + config.YamlConfigVar.MitmConfig.RawData.RequestHeader + config.YamlConfigVar.MitmConfig.RawData.RequestBody + "\n```\n")
+					if global.YamlConfigVar.MitmConfig.HttpDump.DumpRequest {
+						fileObj.WriteString("```\n" + global.YamlConfigVar.MitmConfig.RawData.RequestHeader + global.YamlConfigVar.MitmConfig.RawData.RequestBody + "\n```\n")
 					}
-					fileObj.WriteString("```\n" + config.YamlConfigVar.MitmConfig.RawData.ResponseHeader + config.YamlConfigVar.MitmConfig.RawData.ResponseBody + "\n```\n")
+					fileObj.WriteString("```\n" + global.YamlConfigVar.MitmConfig.RawData.ResponseHeader + global.YamlConfigVar.MitmConfig.RawData.ResponseBody + "\n```\n")
 				}
 			}
 		}
@@ -201,16 +202,16 @@ func (e *EventHandler) BeforeResponse(ctx *goproxy.Context, resp *http.Response,
 			rawRespBody, _ = ioutil.ReadAll(resp.Body)
 			resp.Body = ioutil.NopCloser(bytes.NewReader(rawRespBody))
 		}
-		config.YamlConfigVar.MitmConfig.RawData.ResponseHeader = string(rawRespWithoutBody)
-		config.YamlConfigVar.MitmConfig.RawData.ResponseBody = string(rawRespBody)
+		global.YamlConfigVar.MitmConfig.RawData.ResponseHeader = string(rawRespWithoutBody)
+		global.YamlConfigVar.MitmConfig.RawData.ResponseBody = string(rawRespBody)
 
 		tmpResp := resp
-		for i, v := range config.YamlConfigVar.MitmConfig.CustomReplaces {
-			// log.Println(config.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagReq)
-			if config.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagReq {
-				// log.Println(config.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagResp)
-				config.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagResp = config.CheckRespConditions(tmpResp, v.Conditions)
-				// log.Println(config.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagResp)
+		for i, v := range global.YamlConfigVar.MitmConfig.CustomReplaces {
+			// log.Println(global.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagReq)
+			if global.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagReq {
+				// log.Println(global.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagResp)
+				global.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagResp = config.CheckRespConditions(tmpResp, v.Conditions)
+				// log.Println(global.YamlConfigVar.MitmConfig.CustomReplaces[i].FlagResp)
 				tmpResp, _ = config.DoRespReplace(tmpResp, v.Replaces)
 			}
 		}
@@ -255,10 +256,10 @@ func (e *EventHandler) BeforeResponse(ctx *goproxy.Context, resp *http.Response,
 // 设置上级代理
 func (e *EventHandler) ParentProxy(req *http.Request) (*url.URL, error) {
 	// fmt.Println("Parent Proxy")
-	if config.YamlConfigVar.MitmConfig.UpstreamProxy == "" {
+	if global.YamlConfigVar.MitmConfig.UpstreamProxy == "" {
 		return nil, nil
 	} else {
-		return url.Parse(config.YamlConfigVar.MitmConfig.UpstreamProxy)
+		return url.Parse(global.YamlConfigVar.MitmConfig.UpstreamProxy)
 	}
 }
 

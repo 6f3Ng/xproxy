@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"xproxy/cert"
+	"xproxy/global"
 )
 
 const (
@@ -50,7 +51,6 @@ type options struct {
 	decryptHTTPS     bool
 	certCache        cert.Cache
 	transport        *http.Transport
-	listenAddr       string
 }
 
 type Option func(*options)
@@ -81,13 +81,6 @@ func WithDecryptHTTPS(c cert.Cache) Option {
 	return func(opt *options) {
 		opt.decryptHTTPS = true
 		opt.certCache = c
-	}
-}
-
-// 传入监听端口
-func WithListenAddr(listenAddr string) Option {
-	return func(opt *options) {
-		opt.listenAddr = listenAddr
 	}
 }
 
@@ -127,10 +120,6 @@ func New(opt ...Option) *Proxy {
 	p.transport.DisableKeepAlives = opts.disableKeepAlive
 	p.transport.Proxy = p.delegate.ParentProxy
 
-	p.listenAddr = opts.listenAddr
-
-	p.ipList, _ = getAllIps()
-
 	return p
 }
 
@@ -141,12 +130,10 @@ type Proxy struct {
 	decryptHTTPS  bool
 	cert          *cert.Certificate
 	transport     *http.Transport
-	listenAddr    string
-	ipList        []string
 }
 
 func (p *Proxy) checkListenAddr(host string) bool {
-	listenIp, listenPort, _ := net.SplitHostPort(p.listenAddr)
+	listenIp, listenPort, _ := net.SplitHostPort(global.ListenAddr)
 	reqIp, reqPort, _ := net.SplitHostPort(host)
 	if listenPort != reqPort {
 		return false
@@ -158,38 +145,13 @@ func (p *Proxy) checkListenAddr(host string) bool {
 			return false
 		}
 	} else {
-		for _, v := range p.ipList {
+		for _, v := range global.IpLists {
 			if v == reqIp {
 				return true
 			}
 		}
 		return false
 	}
-}
-
-func getAllIps() ([]string, error) {
-	ips := []string{}
-	interfaces, err := net.Interfaces()
-
-	if err != nil {
-		return nil, err
-	}
-
-	for _, i := range interfaces {
-		if err != nil {
-			return nil, err
-		}
-		addresses, _ := i.Addrs()
-		for _, address := range addresses {
-			if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-				if ipnet.IP.To4() != nil {
-					// fmt.Println(ipnet.IP.String())
-					ips = append(ips, ipnet.IP.String())
-				}
-			}
-		}
-	}
-	return ips, nil
 }
 
 var _ http.Handler = &Proxy{}

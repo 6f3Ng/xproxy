@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
@@ -199,4 +200,30 @@ func BREn(str string) []byte {
 func BRDe(in io.ReadCloser) ([]byte, error) {
 	reader := brotli.NewReader(in)
 	return ioutil.ReadAll(reader)
+}
+
+// 获取本机ip列表
+func GetAllIps() ([]string, error) {
+	ips := []string{}
+	interfaces, err := net.Interfaces()
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, i := range interfaces {
+		if err != nil {
+			return nil, err
+		}
+		addresses, _ := i.Addrs()
+		for _, address := range addresses {
+			if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil {
+					// fmt.Println(ipnet.IP.String())
+					ips = append(ips, ipnet.IP.String())
+				}
+			}
+		}
+	}
+	return ips, nil
 }

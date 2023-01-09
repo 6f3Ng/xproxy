@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"xproxy/cert"
-	"xproxy/config"
+	"xproxy/global"
 )
 
 func (p *Proxy) MyServer(ctx *Context, rw http.ResponseWriter) {
@@ -27,13 +27,13 @@ func index(ctx *Context, rw http.ResponseWriter) {
 }
 
 func getConfig(ctx *Context, rw http.ResponseWriter) {
-	sendJSONResponse(rw, config.YamlConfigVar)
+	sendJSONResponse(rw, global.YamlConfigVar)
 }
 
 // 下载证书
 func downloadCert(ctx *Context, rw http.ResponseWriter) {
 	rw.Header().Set("Content-Type", "application/octet-stream; charset=UTF-8")
-	rw.Header().Set("Content-Disposition", "attachment; filename="+config.YamlConfigVar.MitmConfig.CaCert)
+	rw.Header().Set("Content-Disposition", "attachment; filename="+global.YamlConfigVar.MitmConfig.CaCert)
 	rw.Header().Set("Access-Control-Allow-Origin", "*")
 	rw.Header().Add("Access-Control-Allow-Headers", "Content-Type")
 	resp := &http.Response{
