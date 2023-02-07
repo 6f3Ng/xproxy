@@ -180,11 +180,13 @@ func (e *EventHandler) BeforeResponse(ctx *goproxy.Context, resp *http.Response,
 					// log.Println(string(global.YamlConfigVar.MitmConfig.RawData.RequestHeader + global.YamlConfigVar.MitmConfig.RawData.RequestBody))
 					// log.Println(string(global.YamlConfigVar.MitmConfig.RawData.ResponseHeader + global.YamlConfigVar.MitmConfig.RawData.ResponseBody))
 
-					if global.YamlConfigVar.MitmConfig.HttpDump.DumpRequest {
-						fileObj.WriteString("```\n" + global.YamlConfigVar.MitmConfig.RawData.RequestHeader + global.YamlConfigVar.MitmConfig.RawData.RequestBody + "\n```\n")
-					}
-					fileObj.WriteString("```\n" + global.YamlConfigVar.MitmConfig.RawData.ResponseHeader + global.YamlConfigVar.MitmConfig.RawData.ResponseBody + "\n```\n")
 				}
+			}
+			if err == nil && global.YamlConfigVar.MitmConfig.HttpDump.FlagReq && global.YamlConfigVar.MitmConfig.HttpDump.DumpRequest {
+				fileObj.WriteString("```\n" + global.YamlConfigVar.MitmConfig.RawData.RequestHeader + global.YamlConfigVar.MitmConfig.RawData.RequestBody + "\n```\n")
+			}
+			if err == nil && global.YamlConfigVar.MitmConfig.HttpDump.FlagResp && global.YamlConfigVar.MitmConfig.HttpDump.DumpResponse {
+				fileObj.WriteString("```\n" + global.YamlConfigVar.MitmConfig.RawData.ResponseHeader + global.YamlConfigVar.MitmConfig.RawData.ResponseBody + "\n```\n")
 			}
 		}
 
